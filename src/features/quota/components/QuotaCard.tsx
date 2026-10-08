@@ -5,13 +5,16 @@
  * - loading：双幽灵行骨架（aria-busy，文字等价视觉隐藏）；
  * - error：失败色条 + footer 刷新即重试；
  * - success：provider Body（穿 QuotaBody.module.scss 全页外衣）。
+ * A loading/error state that still carries its last successful load (`loadedAt`, Claude)
+ * renders that data instead; a failed refresh adds a muted "showing data from …" note.
  */
 
 import { useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconRefreshCw } from '@/components/ui/icons';
-import type { ResolvedTheme } from '@/types';
-import { resolveQuotaErrorMessage } from '@/utils/quota';
+import { useNow } from '@/hooks/useNow';
+import type { ClaudeQuotaState, ResolvedTheme } from '@/types';
+import { formatRelativeInstant, resolveQuotaErrorMessage } from '@/utils/quota';
 import { getQuotaDisplayName } from '@/utils/quota/identity';
 import {
   getAuthFileIcon,
@@ -22,6 +25,7 @@ import {
 import { bindQuotaClasses } from '../types';
 import { QUOTA_ADAPTERS, type QuotaCardState } from '../providers';
 import { isQuotaRefreshDisabled, type QuotaFileEntry } from '../logic';
+import { isClaudeAtLimit } from '../providers/claude/data';
 import { useClaudeResetGrants } from '../providers/claude/ClaudeResetGrants';
 import { ClaudeResetGrantDetails } from '../providers/claude/ClaudeResetGrantDetails';
 import bodyStyles from './QuotaBody.module.scss';
@@ -56,7 +60,7 @@ export function QuotaCard(props: QuotaCardProps) {
     onRefresh,
     onReset,
   } = props;
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const adapter = QUOTA_ADAPTERS[entry.type];
   const file = entry.file;
   const displayName = displayNameOverride ?? getQuotaDisplayName(file);
@@ -70,11 +74,16 @@ export function QuotaCard(props: QuotaCardProps) {
 
   const status = quota?.status ?? 'idle';
   const loading = status === 'loading';
+  // A loading or failed state can still carry the last successful load (Claude): keep
+  // rendering it, with a note when the refresh failed, instead of a skeleton or error strip.
+  const lastLoadedAt = quota?.loadedAt;
+  const hasData = status === 'success' || lastLoadedAt !== undefined;
+  const now = useNow(status === 'error' && lastLoadedAt !== undefined);
   const claudeReset = useClaudeResetGrants(
     file,
     entry.type === 'claude' && status !== 'idle',
     !canRefresh || loading || resetting,
-    quota,
+    entry.type === 'claude' && isClaudeAtLimit(quota as ClaudeQuotaState | undefined),
     onRefresh,
     displayName
   );
@@ -118,7 +127,7 @@ export function QuotaCard(props: QuotaCardProps) {
       </header>
 
       <div className={styles.body}>
-        {entry.type === 'claude' && status === 'success' && (
+        {entry.type === 'claude' && hasData && (
           <>
             <div className={quotaClasses.codexPlan}>
               <span className={quotaClasses.codexPlanItem}>
@@ -144,7 +153,7 @@ export function QuotaCard(props: QuotaCardProps) {
             <IconRefreshCw size={15} aria-hidden="true" className={styles.idleGlyph} />
             <span className={styles.idleHint}>{t(`${adapter.i18nPrefix}.idle`)}</span>
           </button>
-        ) : loading ? (
+        ) : loading && !hasData ? (
           <div className={styles.skeleton} aria-busy="true">
             <span className={styles.srOnly}>{t(`${adapter.i18nPrefix}.loading`)}</span>
             {[0, 1].map((row) => (
@@ -154,12 +163,24 @@ export function QuotaCard(props: QuotaCardProps) {
               </div>
             ))}
           </div>
-        ) : status === 'error' ? (
+        ) : status === 'error' && !hasData ? (
           <div className={styles.errorStrip} role="alert">
             {t(`${adapter.i18nPrefix}.load_failed`, { message: errorMessage })}
           </div>
         ) : quota ? (
-          <adapter.Body quota={quota} classes={quotaClasses} />
+          <>
+            <adapter.Body quota={quota} classes={quotaClasses} />
+            {status === 'error' && lastLoadedAt !== undefined && (
+              <div className={styles.staleNote} role="status" title={errorMessage}>
+                {t(
+                  quota.errorStatus === 429
+                    ? 'quota_management.stale_rate_limited'
+                    : 'quota_management.stale_failed',
+                  { when: formatRelativeInstant(lastLoadedAt, now, i18n.resolvedLanguage) }
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <div className={styles.idleHint}>{t(`${adapter.i18nPrefix}.idle`)}</div>
         )}

@@ -514,7 +514,8 @@
     "aggregate_all_failed": "所有 Claude 账号均加载失败，打开详情查看各自的错误。",
     "aggregate_refresh_hint": "刷新全部 Claude 账号的额度",
     "details_button": "详情",
-    "details_title": "Claude 账号"
+    "details_title": "Claude 账号",
+    "aggregate_stale": "{{count}} 个显示旧数据"
   },
   "codex_quota": {
     "title": "Codex 额度",
@@ -1604,7 +1605,9 @@
     "weekday_wed": "三",
     "weekday_thu": "四",
     "weekday_fri": "五",
-    "weekday_sat": "六"
+    "weekday_sat": "六",
+    "stale_rate_limited": "已限流 · 显示 {{when}} 的数据",
+    "stale_failed": "刷新失败 · 显示 {{when}} 的数据"
   },
   "plugin_management": {
     "title": "插件管理",

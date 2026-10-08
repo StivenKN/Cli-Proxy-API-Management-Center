@@ -226,6 +226,16 @@
   overflow-wrap: anywhere;
 }
 
+/* Failed refresh over earlier data: the body keeps that data, this says how old it is.
+   Muted rather than failure-coloured — the numbers shown are still real, just not fresh. */
+.staleNote {
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+
 /* ---------- footer 动作 ---------- */
 
 .actionRow {

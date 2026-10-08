@@ -24,17 +24,23 @@ export interface ClaudeAggregateWindow {
 export interface ClaudeQuotaAggregate {
   windows: ClaudeAggregateWindow[];
   total: number;
+  /** Accounts with data, including stale ones still showing their last good load. */
   loaded: number;
+  /** Loads in flight (with or without earlier data). */
   loading: number;
+  /** Last refresh failed and there is no earlier data. */
   failed: number;
+  /** Last refresh failed (e.g. rate limited); the account still shows its last good data. */
+  stale: number;
 }
 
 /**
- * Average each window's remaining percent across the loaded accounts.
+ * Average each window's remaining percent across the accounts with data.
  *
  * An account without a window is left out of that window's average rather than counted
  * as full: one account on a plain 7-day limit at 60% reads "60% left", not a diluted 90%.
- * Loading, failed and not-yet-loaded accounts only show up in the counts.
+ * An account whose refresh is in flight or failed keeps contributing its last good data
+ * (`loadedAt`); accounts with no data at all only show up in the counts.
  */
 export function aggregateClaudeQuota(
   quotas: readonly (ClaudeQuotaState | undefined)[],
@@ -44,11 +50,17 @@ export function aggregateClaudeQuota(
   let loaded = 0;
   let loading = 0;
   let failed = 0;
+  let stale = 0;
 
   for (const quota of quotas) {
-    if (quota?.status === 'loading') loading += 1;
-    if (quota?.status === 'error') failed += 1;
-    if (quota?.status !== 'success') continue;
+    if (!quota) continue;
+    const hasData = quota.status === 'success' || quota.loadedAt !== undefined;
+    if (quota.status === 'loading') loading += 1;
+    if (quota.status === 'error') {
+      if (hasData) stale += 1;
+      else failed += 1;
+    }
+    if (!hasData) continue;
     loaded += 1;
 
     const seen = new Set<string>();
@@ -91,5 +103,5 @@ export function aggregateClaudeQuota(
     }))
     .sort((a, b) => rank(a.id) - rank(b.id));
 
-  return { windows, total: quotas.length, loaded, loading, failed };
+  return { windows, total: quotas.length, loaded, loading, failed, stale };
 }

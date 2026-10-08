@@ -16,6 +16,10 @@ import { selectResetGrant } from './selectResetGrant';
 /**
  * Card-owned reads; the session-scoped journal owns spending and ambiguous retries.
  * `displayName` is what the confirmation shows for the account (e.g. a masked name).
+ *
+ * The read hits the same rate-limited usage endpoint as a quota load, so it runs once per
+ * trigger: mount, a claim, or a `refreshToken` change. `disabled` (a load or reset in progress)
+ * defers a pending read but never repeats one that already completed.
  */
 export function useClaudeResetGrants(
   file: AuthFileItem,
@@ -41,8 +45,11 @@ export function useClaudeResetGrants(
   const [reload, setReload] = useState(0);
   const lock = useRef(false);
   const generation = useRef(0);
+  const readKey = JSON.stringify([key, session, refreshToken, reload]);
+  const completedRead = useRef<string | null>(null);
   useEffect(() => {
     const version = ++generation.current;
+    if (completedRead.current === readKey) return;
     setStatus(null);
     if (!enabled || disabled || !sessionActive || !authIndex) return;
     let cancelled = false;
@@ -51,19 +58,23 @@ export function useClaudeResetGrants(
     void readClaudeResetGrants(authIndex).then(
       (result) => {
         if (current()) {
+          completedRead.current = readKey;
           setStatus(result);
           setMessage('');
         }
       },
       () => {
-        if (current()) setMessage('read_error');
+        if (current()) {
+          completedRead.current = readKey;
+          setMessage('read_error');
+        }
       }
     );
     return () => {
       cancelled = true;
       generation.current += 1;
     };
-  }, [authIndex, key, enabled, disabled, sessionActive, session, refreshToken, reload]);
+  }, [authIndex, enabled, disabled, sessionActive, session, readKey]);
 
   const operation = resetGrantOperations.inspect(key);
   const pending = operation && !operation.code ? operation : undefined;

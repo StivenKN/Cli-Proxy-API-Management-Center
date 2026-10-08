@@ -11,8 +11,14 @@ import { DEVIN_CONFIG } from './providers/devin/data';
 import { KIMI_CONFIG } from './providers/kimi/data';
 import { META_CONFIG } from './providers/meta/data';
 import { XAI_CONFIG } from './providers/xai/data';
+import type { QuotaCardState } from './providers';
 import type { QuotaProviderType } from './providers/types';
-import { QUOTA_TAB_ORDER, type QuotaSortMode, type QuotaTabId } from './constants';
+import {
+  QUOTA_AUTO_LOAD_FRESH_MS,
+  QUOTA_TAB_ORDER,
+  type QuotaSortMode,
+  type QuotaTabId,
+} from './constants';
 
 const QUOTA_FILTER_MAP: Record<QuotaProviderType, (file: AuthFileItem) => boolean> = {
   antigravity: ANTIGRAVITY_CONFIG.filterFn,
@@ -75,6 +81,23 @@ export function splitClaudeEntries(entries: QuotaFileEntry[]): {
     (entry.type === 'claude' ? claude : grid).push(entry);
   }
   return { claude, grid };
+}
+
+/** Providers queried on page open instead of on click (Claude feeds the aggregate card). */
+const AUTO_LOAD_TYPES: ReadonlySet<QuotaProviderType> = new Set(['claude', 'devin']);
+
+/**
+ * Whether page-open auto-load should fetch this credential: never one already in flight, and
+ * never one that loaded successfully within QUOTA_AUTO_LOAD_FRESH_MS — even if a refresh failed
+ * since (it still shows that data, and retrying a rate limit right away just extends it).
+ */
+export function shouldAutoLoadQuota(
+  type: QuotaProviderType,
+  quota: QuotaCardState | undefined,
+  nowMs: number
+): boolean {
+  if (!AUTO_LOAD_TYPES.has(type) || quota?.status === 'loading') return false;
+  return quota?.loadedAt === undefined || nowMs - quota.loadedAt >= QUOTA_AUTO_LOAD_FRESH_MS;
 }
 
 export function filterEntriesByTab(entries: QuotaFileEntry[], tab: QuotaTabId): QuotaFileEntry[] {

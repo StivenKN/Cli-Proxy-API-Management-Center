@@ -6,6 +6,8 @@
  * - requestIdRef：被超越的响应直接丢弃；
  * - cacheGeneration：断线重连后过期请求不得写入新会话缓存。
  * 提交按 provider 分组进行 —— 快的提供商先落地，不等慢的。
+ * Credentials already loading are skipped (no concurrent loads for one credential), and each
+ * state transition receives the previous state so providers can keep their last good data.
  */
 
 import { useCallback, useRef, useState } from 'react';
@@ -14,7 +16,7 @@ import { captureQuotaCacheGeneration, commitIfQuotaCacheCurrent } from '@/stores
 import { getStatusFromError } from '@/utils/quota';
 import { getQuotaCacheKey } from '@/utils/quota/identity';
 import type { QuotaFileEntry } from '../logic';
-import { QUOTA_ADAPTERS, getQuotaSetter, type QuotaCardState } from '../providers';
+import { QUOTA_ADAPTERS, getQuotaMap, getQuotaSetter, type QuotaCardState } from '../providers';
 import { enrichQuotaInBackground } from '../quotaEnrichment';
 import type { QuotaProviderType } from '../providers/types';
 
@@ -34,8 +36,13 @@ export function useQuotaBatchLoader() {
   const requestIdRef = useRef(0);
 
   const loadQuota = useCallback(
-    async (targets: QuotaFileEntry[]) => {
+    async (requested: QuotaFileEntry[]) => {
       if (loadingRef.current) return;
+      // Never a second concurrent load for one credential (e.g. a per-card refresh in flight).
+      const targets = requested.filter(
+        ({ type, file }) =>
+          getQuotaMap(QUOTA_ADAPTERS[type])[getQuotaCacheKey(file)]?.status !== 'loading'
+      );
       if (targets.length === 0) return;
       loadingRef.current = true;
       const requestId = ++requestIdRef.current;
@@ -59,7 +66,8 @@ export function useQuotaBatchLoader() {
               setQuota((prev) => {
                 const nextState = { ...prev };
                 entries.forEach(({ file }) => {
-                  nextState[getQuotaCacheKey(file)] = adapter.buildLoadingState();
+                  const cacheKey = getQuotaCacheKey(file);
+                  nextState[cacheKey] = adapter.buildLoadingState(prev[cacheKey]);
                 });
                 return nextState;
               });
@@ -69,7 +77,8 @@ export function useQuotaBatchLoader() {
               entries.map(async ({ file }): Promise<BatchFetchResult> => {
                 const cacheKey = getQuotaCacheKey(file);
                 try {
-                  const data = await adapter.fetchQuota(file, t);
+                  const previous = getQuotaMap(adapter)[cacheKey];
+                  const data = await adapter.fetchQuota(file, t, previous);
                   return { name: file.name, cacheKey, status: 'success', data };
                 } catch (err: unknown) {
                   const message = err instanceof Error ? err.message : t('common.unknown_error');
@@ -98,7 +107,8 @@ export function useQuotaBatchLoader() {
                         ? adapter.buildSuccessState(result.data)
                         : adapter.buildErrorState(
                             result.error || t('common.unknown_error'),
-                            result.errorStatus
+                            result.errorStatus,
+                            prev[result.cacheKey]
                           );
                     committedStates.set(result.cacheKey, nextState[result.cacheKey]);
                   },

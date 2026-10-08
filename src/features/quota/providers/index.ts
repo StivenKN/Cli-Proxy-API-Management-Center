@@ -31,21 +31,26 @@ export interface QuotaCardState {
   status: 'idle' | 'loading' | 'success' | 'error';
   error?: string;
   errorStatus?: number;
+  /**
+   * Epoch ms of the last successful load, for providers that track it (Claude). When set on
+   * a loading or error state, that state still carries the last good data for the body.
+   */
+  loadedAt?: number;
 }
 
 export interface QuotaAdapter {
   type: QuotaProviderType;
   i18nPrefix: string;
   filterFn: (file: AuthFileItem) => boolean;
-  fetchQuota: (file: AuthFileItem, t: TFunction) => Promise<unknown>;
+  fetchQuota: (file: AuthFileItem, t: TFunction, previous?: QuotaCardState) => Promise<unknown>;
   enrichQuota?: (file: AuthFileItem, data: unknown, t: TFunction) => Promise<unknown>;
   resetQuota?: (file: AuthFileItem, t: TFunction) => Promise<unknown>;
   canResetQuota?: (quota: QuotaCardState) => boolean;
   storeSelector: (state: QuotaStore) => Record<string, QuotaCardState>;
   storeSetter: keyof QuotaStore;
-  buildLoadingState: () => QuotaCardState;
+  buildLoadingState: (previous?: QuotaCardState) => QuotaCardState;
   buildSuccessState: (data: unknown) => QuotaCardState;
-  buildErrorState: (message: string, status?: number) => QuotaCardState;
+  buildErrorState: (message: string, status?: number, previous?: QuotaCardState) => QuotaCardState;
   Body: ComponentType<QuotaBodyProps<QuotaCardState>>;
 }
 

@@ -62,7 +62,7 @@ export function ClaudeAggregateCard({
 }: ClaudeAggregateCardProps) {
   const { t, i18n } = useTranslation();
   const now = useNow();
-  const { windows, total, loaded, loading, failed } = useMemo(
+  const { windows, total, loaded, loading, failed, stale } = useMemo(
     () => aggregateClaudeQuota(quotas, now),
     [quotas, now]
   );
@@ -170,14 +170,18 @@ export function ClaudeAggregateCard({
 
       <div className={cardStyles.body}>
         {renderBody()}
-        {loaded > 0 && loaded < total && (
+        {/* Accounts showing older data after a failed refresh still count as loaded. */}
+        {loaded > 0 && (loaded < total || stale > 0 || loading > 0) && (
           <p className={styles.note} role="status">
-            <span>{t('claude_quota.aggregate_partial', { loaded, total })}</span>
+            {loaded < total && (
+              <span>{t('claude_quota.aggregate_partial', { loaded, total })}</span>
+            )}
             {failed > 0 && (
               <span className={styles.noteFailed}>
                 {t('claude_quota.aggregate_failed', { count: failed })}
               </span>
             )}
+            {stale > 0 && <span>{t('claude_quota.aggregate_stale', { count: stale })}</span>}
             {loading > 0 && <span>{t('claude_quota.aggregate_loading', { count: loading })}</span>}
           </p>
         )}

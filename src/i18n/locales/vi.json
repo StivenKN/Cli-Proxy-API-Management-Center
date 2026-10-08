@@ -517,7 +517,8 @@
     "aggregate_all_failed": "Không tải được tài khoản Claude nào. Mở Chi tiết để xem lỗi của từng tài khoản.",
     "aggregate_refresh_hint": "Làm mới quota cho mọi tài khoản Claude",
     "details_button": "Chi tiết",
-    "details_title": "Tài khoản Claude"
+    "details_title": "Tài khoản Claude",
+    "aggregate_stale": "{{count}} đang hiển thị dữ liệu cũ"
   },
   "codex_quota": {
     "title": "Quota Codex",
@@ -1563,7 +1564,9 @@
     "search_placeholder": "Tìm theo tên file hoặc email",
     "search_empty_title": "Không có tài khoản phù hợp",
     "search_empty_desc": "Hãy thử tên file hoặc email khác, hoặc xóa tìm kiếm.",
-    "search_clear": "Xóa tìm kiếm"
+    "search_clear": "Xóa tìm kiếm",
+    "stale_rate_limited": "Bị giới hạn tần suất · hiển thị dữ liệu từ {{when}}",
+    "stale_failed": "Làm mới thất bại · hiển thị dữ liệu từ {{when}}"
   },
   "plugin_management": {
     "title": "Quản lý Plugin",

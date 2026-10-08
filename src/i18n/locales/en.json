@@ -517,7 +517,8 @@
     "aggregate_all_failed": "No Claude account could be loaded. Open Details to see each error.",
     "aggregate_refresh_hint": "Refresh quota for every Claude account",
     "details_button": "Details",
-    "details_title": "Claude accounts"
+    "details_title": "Claude accounts",
+    "aggregate_stale": "{{count}} showing older data"
   },
   "codex_quota": {
     "title": "Codex Quota",
@@ -1606,7 +1607,9 @@
     "weekday_wed": "Wed",
     "weekday_thu": "Thu",
     "weekday_fri": "Fri",
-    "weekday_sat": "Sat"
+    "weekday_sat": "Sat",
+    "stale_rate_limited": "Rate limited · showing data from {{when}}",
+    "stale_failed": "Refresh failed · showing data from {{when}}"
   },
   "plugin_management": {
     "title": "Plugin Management",

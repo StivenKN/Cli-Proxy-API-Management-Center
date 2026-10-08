@@ -36,6 +36,8 @@ export type ClaudeQuotaData = {
   windows: ClaudeQuotaWindow[];
   extraUsage?: ClaudeExtraUsage | null;
   planType?: string | null;
+  /** Epoch ms when this data was fetched. */
+  loadedAt: number;
 };
 
 const findFableUsageLimit = (payload: ClaudeUsagePayload) => {
@@ -173,26 +175,46 @@ export const resolveClaudePlanType = (profile: ClaudeProfileResponse | null): st
   return null;
 };
 
-const fetchClaudeQuota = async (file: AuthFileItem, t: TFunction): Promise<ClaudeQuotaData> => {
+/** Plan from the profile endpoint; null when it cannot be read (never throws). */
+const fetchClaudePlanType = async (authIndex: string): Promise<string | null> => {
+  try {
+    const result = await apiCallApi.request({
+      authIndex,
+      method: 'GET',
+      url: CLAUDE_PROFILE_URL,
+      header: { ...CLAUDE_REQUEST_HEADERS },
+    });
+    if (result.statusCode < 200 || result.statusCode >= 300) return null;
+    return resolveClaudePlanType(parseClaudeProfilePayload(result.body ?? result.bodyText));
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * One usage call per load. The profile call is made only until the plan is known: the plan
+ * practically never changes, and every call counts against the account's rate limit.
+ */
+const fetchClaudeQuota = async (
+  file: AuthFileItem,
+  t: TFunction,
+  previous?: ClaudeQuotaState
+): Promise<ClaudeQuotaData> => {
   const rawAuthIndex = file['auth_index'] ?? file.authIndex;
   const authIndex = normalizeAuthIndex(rawAuthIndex);
   if (!authIndex) {
     throw new Error(t('claude_quota.missing_auth_index'));
   }
 
-  const [usageResult, profileResult] = await Promise.allSettled([
+  const knownPlanType = previous?.planType || null;
+  const [usageResult, planResult] = await Promise.allSettled([
     apiCallApi.request({
       authIndex,
       method: 'GET',
       url: CLAUDE_USAGE_URL,
       header: { ...CLAUDE_REQUEST_HEADERS },
     }),
-    apiCallApi.request({
-      authIndex,
-      method: 'GET',
-      url: CLAUDE_PROFILE_URL,
-      header: { ...CLAUDE_REQUEST_HEADERS },
-    }),
+    knownPlanType ?? fetchClaudePlanType(authIndex),
   ]);
 
   if (usageResult.status === 'rejected') {
@@ -211,17 +233,33 @@ const fetchClaudeQuota = async (file: AuthFileItem, t: TFunction): Promise<Claud
   }
 
   const windows = buildClaudeQuotaWindows(payload, t);
-  const planType =
-    profileResult.status === 'fulfilled' &&
-    profileResult.value.statusCode >= 200 &&
-    profileResult.value.statusCode < 300
-      ? resolveClaudePlanType(
-          parseClaudeProfilePayload(profileResult.value.body ?? profileResult.value.bodyText)
-        )
-      : null;
+  const planType = planResult.status === 'fulfilled' ? planResult.value : null;
 
-  return { windows, extraUsage: payload.extra_usage, planType };
+  return { windows, extraUsage: payload.extra_usage, planType, loadedAt: Date.now() };
 };
+
+/**
+ * The last successful data, carried through a reload: while loading, and after a failed
+ * refresh, the account keeps showing (and aggregating) what it last loaded.
+ */
+const lastGoodData = (
+  previous?: ClaudeQuotaState
+): Pick<ClaudeQuotaState, 'windows' | 'extraUsage' | 'planType' | 'loadedAt'> =>
+  previous?.loadedAt === undefined
+    ? { windows: [] }
+    : {
+        windows: previous.windows,
+        extraUsage: previous.extraUsage,
+        planType: previous.planType,
+        loadedAt: previous.loadedAt,
+      };
+
+/**
+ * True when a usage window is used up — the only time a banked reset can become spendable,
+ * so the reset-grant read is repeated only when this flips (not on every load).
+ */
+export const isClaudeAtLimit = (quota: ClaudeQuotaState | undefined): boolean =>
+  (quota?.windows ?? []).some((window) => (window.usedPercent ?? 0) >= 100);
 
 export const CLAUDE_CONFIG: QuotaProviderData<ClaudeQuotaState, ClaudeQuotaData> = {
   type: 'claude',
@@ -230,16 +268,17 @@ export const CLAUDE_CONFIG: QuotaProviderData<ClaudeQuotaState, ClaudeQuotaData>
   fetchQuota: fetchClaudeQuota,
   storeSelector: (state) => state.claudeQuota,
   storeSetter: 'setClaudeQuota',
-  buildLoadingState: () => ({ status: 'loading', windows: [] }),
+  buildLoadingState: (previous) => ({ status: 'loading', ...lastGoodData(previous) }),
   buildSuccessState: (data) => ({
     status: 'success',
     windows: data.windows,
     extraUsage: data.extraUsage,
     planType: data.planType,
+    loadedAt: data.loadedAt,
   }),
-  buildErrorState: (message, status) => ({
+  buildErrorState: (message, status, previous) => ({
     status: 'error',
-    windows: [],
+    ...lastGoodData(previous),
     error: message,
     errorStatus: status,
   }),

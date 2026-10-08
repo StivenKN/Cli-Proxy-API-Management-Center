@@ -21,5 +21,12 @@ export const QUOTA_SORT_MODES = ['default', 'soonest'] as const;
 
 export type QuotaSortMode = (typeof QUOTA_SORT_MODES)[number];
 
+/**
+ * Page-open auto-load skips a credential whose last successful load is younger than this.
+ * Claude's usage endpoint is rate limited per account, so re-opening the page must not refetch;
+ * explicit refresh buttons always fetch.
+ */
+export const QUOTA_AUTO_LOAD_FRESH_MS = 10 * 60 * 1000;
+
 /** 与 useRevealGroup 的 GROUP_MAX_TOTAL 一致：卡片级联总预算 360ms。 */
 export const CARD_ENTRANCE_BUDGET_MS = 360;

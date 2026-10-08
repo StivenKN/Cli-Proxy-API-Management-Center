@@ -183,6 +183,11 @@ export interface ClaudeQuotaState {
   planType?: string | null;
   error?: string;
   errorStatus?: number;
+  /**
+   * Epoch ms of the last successful load. A loading or error state that still carries it
+   * keeps that load's windows/plan, so a failed refresh (e.g. a 429) never blanks the account.
+   */
+  loadedAt?: number;
 }
 
 // Quota state types

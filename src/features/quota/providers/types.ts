@@ -45,14 +45,16 @@ export interface QuotaProviderData<TState, TData> {
   type: QuotaProviderType;
   i18nPrefix: string;
   filterFn: (file: AuthFileItem) => boolean;
-  fetchQuota: (file: AuthFileItem, t: TFunction) => Promise<TData>;
+  /** `previous` is the credential's current state, for reusing data that rarely changes. */
+  fetchQuota: (file: AuthFileItem, t: TFunction, previous?: TState) => Promise<TData>;
   /** Optional details loaded only after the primary quota has been committed. */
   enrichQuota?: (file: AuthFileItem, data: TData, t: TFunction) => Promise<TData>;
   resetQuota?: (file: AuthFileItem, t: TFunction) => Promise<TData>;
   canResetQuota?: (quota: TState) => boolean;
   storeSelector: (state: QuotaStore) => Record<string, TState>;
   storeSetter: keyof QuotaStore;
-  buildLoadingState: () => TState;
+  /** `previous` lets a provider keep its last good data through a reload (see Claude). */
+  buildLoadingState: (previous?: TState) => TState;
   buildSuccessState: (data: TData) => TState;
-  buildErrorState: (message: string, status?: number) => TState;
+  buildErrorState: (message: string, status?: number, previous?: TState) => TState;
 }

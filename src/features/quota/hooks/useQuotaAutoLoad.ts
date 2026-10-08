@@ -1,20 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { useQuotaStore } from '@/stores/useQuotaStore';
 import { getQuotaCacheKey } from '@/utils/quota/identity';
-import type { QuotaFileEntry } from '../logic';
+import { shouldAutoLoadQuota, type QuotaFileEntry } from '../logic';
 import { QUOTA_ADAPTERS, getQuotaMap } from '../providers';
-import type { QuotaProviderType } from '../providers/types';
 
 /**
- * Providers queried without a click. Devin's active management query runs for visible cards;
- * Claude feeds the aggregate card, which has nothing to show until its accounts are loaded.
- */
-const AUTO_LOAD_TYPES: ReadonlySet<QuotaProviderType> = new Set(['claude', 'devin']);
-
-/**
- * Load auto-load credentials once per credential per visit, in a single batch so concurrent
- * requests never trip the batch loader's in-flight guard. Other providers keep click-to-load.
- * No polling.
+ * Page-open auto-load (Devin's visible cards, every Claude account behind the aggregate card):
+ * at most once per credential per visit, skipping fresh or in-flight ones (shouldAutoLoadQuota)
+ * in a single batch so concurrent requests never trip the batch loader's in-flight guard.
+ * Other providers keep click-to-load. No polling.
  */
 export function useQuotaAutoLoad(
   entries: QuotaFileEntry[],
@@ -27,8 +21,8 @@ export function useQuotaAutoLoad(
 
   useEffect(() => {
     if (disabled) return;
+    const now = Date.now();
     const targets = entries.filter(({ type, file }) => {
-      if (!AUTO_LOAD_TYPES.has(type)) return false;
       const key = JSON.stringify([
         session,
         fileGenerations[file.name] ?? 0,
@@ -37,9 +31,11 @@ export function useQuotaAutoLoad(
         file.authIndex,
       ]);
       if (attempted.current.has(key)) return false;
+      // Fresh and in-flight credentials count as this visit's load too, so a load that
+      // fails later in the visit is not retried automatically.
       attempted.current.add(key);
-      // An explicit refresh already started in this effect cycle counts too.
-      return getQuotaMap(QUOTA_ADAPTERS[type])[getQuotaCacheKey(file)]?.status !== 'loading';
+      const quota = getQuotaMap(QUOTA_ADAPTERS[type])[getQuotaCacheKey(file)];
+      return shouldAutoLoadQuota(type, quota, now);
     });
     if (targets.length > 0) void loadQuota(targets);
   }, [disabled, entries, fileGenerations, loadQuota, session]);

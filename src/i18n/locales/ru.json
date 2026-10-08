@@ -522,7 +522,8 @@
     "aggregate_all_failed": "Не удалось загрузить ни один аккаунт Claude. Откройте «Подробнее», чтобы увидеть ошибки.",
     "aggregate_refresh_hint": "Обновить квоту всех аккаунтов Claude",
     "details_button": "Подробнее",
-    "details_title": "Аккаунты Claude"
+    "details_title": "Аккаунты Claude",
+    "aggregate_stale": "со старыми данными: {{count}}"
   },
   "codex_quota": {
     "title": "Квота Codex",
@@ -1611,7 +1612,9 @@
     "weekday_wed": "Ср",
     "weekday_thu": "Чт",
     "weekday_fri": "Пт",
-    "weekday_sat": "Сб"
+    "weekday_sat": "Сб",
+    "stale_rate_limited": "Лимит запросов · данные от {{when}}",
+    "stale_failed": "Не удалось обновить · данные от {{when}}"
   },
   "plugin_management": {
     "title": "Управление плагинами",

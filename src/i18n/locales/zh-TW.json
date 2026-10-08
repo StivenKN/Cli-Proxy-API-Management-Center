@@ -514,7 +514,8 @@
     "aggregate_all_failed": "所有 Claude 帳號皆載入失敗，開啟詳情查看各自的錯誤。",
     "aggregate_refresh_hint": "重新整理全部 Claude 帳號的配額",
     "details_button": "詳情",
-    "details_title": "Claude 帳號"
+    "details_title": "Claude 帳號",
+    "aggregate_stale": "{{count}} 個顯示舊資料"
   },
   "codex_quota": {
     "title": "Codex 配額",
@@ -1630,7 +1631,9 @@
     "weekday_wed": "三",
     "weekday_thu": "四",
     "weekday_fri": "五",
-    "weekday_sat": "六"
+    "weekday_sat": "六",
+    "stale_rate_limited": "已限流 · 顯示 {{when}} 的資料",
+    "stale_failed": "重新整理失敗 · 顯示 {{when}} 的資料"
   },
   "plugin_management": {
     "title": "插件管理",
