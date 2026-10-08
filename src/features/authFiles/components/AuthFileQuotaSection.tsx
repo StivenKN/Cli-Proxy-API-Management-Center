@@ -13,7 +13,7 @@ import { isRuntimeOnlyAuthFile, type QuotaProviderType } from '@/features/authFi
 import { Button } from '@/components/ui/Button';
 import { IconRefreshCw } from '@/components/ui/icons';
 import { bindQuotaClasses } from '@/features/quota/types';
-import { QUOTA_ADAPTERS, type QuotaCardState } from '@/features/quota/providers';
+import { QUOTA_ADAPTERS, getQuotaMap, type QuotaCardState } from '@/features/quota/providers';
 import styles from './AuthFileQuota.module.scss';
 
 /** 认证文件卡片外衣：紧凑额度样式绑定成类型化契约（缺键在模块初始化即抛）。 */
@@ -67,13 +67,15 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
 
     const cacheGeneration = captureQuotaCacheGeneration(file.name);
 
+    // Previous state flows through each transition so a provider can keep its last good data
+    // (and reuse what rarely changes, like Claude's plan) when a refresh fails or is rate limited.
     updateQuotaState((prev) => ({
       ...prev,
-      [cacheKey]: adapter.buildLoadingState(),
+      [cacheKey]: adapter.buildLoadingState(prev[cacheKey]),
     }));
 
     try {
-      const data = await adapter.fetchQuota(file, t);
+      const data = await adapter.fetchQuota(file, t, getQuotaMap(adapter)[cacheKey]);
       commitIfQuotaCacheCurrent(cacheGeneration, () => {
         updateQuotaState((prev) => ({
           ...prev,
@@ -87,7 +89,7 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
       commitIfQuotaCacheCurrent(cacheGeneration, () => {
         updateQuotaState((prev) => ({
           ...prev,
-          [cacheKey]: adapter.buildErrorState(message, status),
+          [cacheKey]: adapter.buildErrorState(message, status, prev[cacheKey]),
         }));
         showNotification(
           t('auth_files.quota_refresh_failed', { name: file.name, message }),
