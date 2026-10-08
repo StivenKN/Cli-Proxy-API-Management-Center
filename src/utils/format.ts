@@ -24,6 +24,49 @@ export function maskApiKey(key: string): string {
   return `${start}${masked}${end}`;
 }
 
+/** Keep at most two leading characters, and never more than half of the value. */
+const maskTail = (value: string): string =>
+  `${value.slice(0, Math.min(2, Math.floor(value.length / 2)))}***`;
+
+/**
+ * Mask an email for display while keeping it recognizable to its owner:
+ * `jonathan@gmail.com` → `jo***@gm***.com`. The TLD is the only part kept whole.
+ */
+export function maskEmail(email: string): string {
+  const trimmed = email.trim();
+  if (!trimmed) return '';
+  const at = trimmed.lastIndexOf('@');
+  if (at <= 0) return maskTail(trimmed);
+
+  const domain = trimmed.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  const maskedDomain =
+    dot > 0 ? `${maskTail(domain.slice(0, dot))}${domain.slice(dot)}` : maskTail(domain);
+  return `${maskTail(trimmed.slice(0, at))}@${maskedDomain}`;
+}
+
+const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Mask every email inside free text such as a credential filename
+ * (`claude-e88029f3-dev1@skylive.world.json` → `claude-e88029f3-de***@sk***.world.json`).
+ *
+ * A known email is replaced as a whole first, so prefixes and hyphens around it survive.
+ * Anything still email-shaped is then masked by pattern, which errs toward masking too much
+ * (a hyphenated filename prefix can be swallowed into the local part) rather than too little.
+ */
+export function maskEmailsInText(text: string, knownEmail?: string): string {
+  const email = knownEmail?.trim();
+  const withKnown = email
+    ? text.replace(new RegExp(escapeRegExp(email), 'gi'), maskEmail(email))
+    : text;
+  // Credential files end in `.json`; keep the extension out of the domain match.
+  const extension = /\.json$/i.exec(withKnown)?.[0] ?? '';
+  const stem = withKnown.slice(0, withKnown.length - extension.length);
+  return `${stem.replace(EMAIL_PATTERN, (match) => maskEmail(match))}${extension}`;
+}
+
 /**
  * 格式化文件大小
  */

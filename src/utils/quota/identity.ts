@@ -1,4 +1,5 @@
 import type { AuthFileItem } from '@/types';
+import { maskEmail, maskEmailsInText } from '@/utils/format';
 import { normalizeRecentRequestAuthIndex } from '@/utils/recentRequests';
 import { isDevinFile } from './validators';
 
@@ -20,6 +21,17 @@ export function getQuotaDisplayName(file: AuthFileItem): string {
   if (!isDevinFile(file)) return file.name;
   const identity = file.email?.trim() || normalizeRecentRequestAuthIndex(file.authIndex);
   return identity ? `${file.name} · ${identity}` : file.name;
+}
+
+/**
+ * Display name with every email masked, for views meant to be safe to screen-share.
+ * The account email is appended (masked) when the filename does not already carry it.
+ */
+export function getMaskedQuotaDisplayName(file: AuthFileItem): string {
+  const email = file.email?.trim() ?? '';
+  const name = maskEmailsInText(file.name, email);
+  if (!email || file.name.toLowerCase().includes(email.toLowerCase())) return name;
+  return `${name} · ${maskEmail(email)}`;
 }
 
 /** Resolve a cache identity back to the physical filename used by file mutations. */

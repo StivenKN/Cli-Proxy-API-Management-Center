@@ -61,6 +61,22 @@ export function classifyQuotaFiles(files: AuthFileItem[]): QuotaFileEntry[] {
   return QUOTA_TAB_ORDER.flatMap((type) => groups.get(type) ?? []);
 }
 
+/**
+ * Claude credentials are summarized by one aggregate card (per-account details live behind
+ * it); every other provider keeps a card per credential in the paginated grid.
+ */
+export function splitClaudeEntries(entries: QuotaFileEntry[]): {
+  claude: QuotaFileEntry[];
+  grid: QuotaFileEntry[];
+} {
+  const claude: QuotaFileEntry[] = [];
+  const grid: QuotaFileEntry[] = [];
+  for (const entry of entries) {
+    (entry.type === 'claude' ? claude : grid).push(entry);
+  }
+  return { claude, grid };
+}
+
 export function filterEntriesByTab(entries: QuotaFileEntry[], tab: QuotaTabId): QuotaFileEntry[] {
   if (tab === 'all') return entries;
   return entries.filter((entry) => entry.type === tab);

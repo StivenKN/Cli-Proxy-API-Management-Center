@@ -1,0 +1,102 @@
+@use '../../../styles/mixins' as *;
+
+/* ============================================================
+ * Claude aggregate card — only the headline rows live here; the shell
+ * (card / head / body / skeleton / action pills) is QuotaCard.module.scss.
+ * Telemetry stays mono + tabular-nums like every other quota row.
+ * ============================================================ */
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-primary);
+  @include text-ellipsis;
+}
+
+.count {
+  flex-shrink: 0;
+  font-family: $font-mono;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  & + & {
+    margin-top: 5px;
+  }
+}
+
+.rowHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rowLabel {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  @include text-ellipsis;
+}
+
+.rowValue {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+  font-family: $font-mono;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The headline number: ink, not fill colour — the meter carries the status encoding. */
+.percent {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.left {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.rowMeta,
+.note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+  margin: 0;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+
+  > * + *::before {
+    content: '·';
+    margin-right: 4px;
+    color: var(--text-quaternary);
+  }
+}
+
+.note {
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--border-color) 80%, transparent);
+}
+
+.noteFailed {
+  color: var(--viz-failure);
+}
