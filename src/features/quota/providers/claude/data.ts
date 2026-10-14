@@ -1,11 +1,12 @@
 /**
- * Claude 额度数据层：用量窗口 + 套餐 + 额外用量。
- * React-free / SCSS-free —— 由 tests/claudeFableQuota.test.ts 直接消费。
+ * Claude quota data: plan windows, extra usage, and independent dollar balances.
+ * React-free and SCSS-free so fixture tests can consume the data layer directly.
  */
 
 import type { TFunction } from 'i18next';
 import type {
   AuthFileItem,
+  ClaudeDollarWindow,
   ClaudeExtraUsage,
   ClaudeProfileResponse,
   ClaudeQuotaState,
@@ -14,6 +15,7 @@ import type {
   ClaudeUsagePayload,
 } from '@/types';
 import { apiCallApi, getApiCallErrorMessage } from '@/services/api';
+import { normalizeClaudeUsageSnapshot } from '@/services/api/claudeUsage';
 import {
   CLAUDE_PROFILE_URL,
   CLAUDE_USAGE_URL,
@@ -36,9 +38,16 @@ export type ClaudeQuotaData = {
   windows: ClaudeQuotaWindow[];
   extraUsage?: ClaudeExtraUsage | null;
   planType?: string | null;
+  dollarWindows: ClaudeDollarWindow[];
+  observedAt: string;
   /** Epoch ms when this data was fetched. */
   loadedAt: number;
 };
+
+export const hasClaudeUsageData = (quota?: ClaudeQuotaState): boolean =>
+  Boolean(
+    quota?.observedAt || quota?.windows?.length || quota?.extraUsage || quota?.dollarWindows?.length
+  );
 
 const findFableUsageLimit = (payload: ClaudeUsagePayload) => {
   if (!Array.isArray(payload.limits)) return null;
@@ -212,7 +221,7 @@ const fetchClaudeQuota = async (
       authIndex,
       method: 'GET',
       url: CLAUDE_USAGE_URL,
-      header: { ...CLAUDE_REQUEST_HEADERS },
+      header: { ...CLAUDE_REQUEST_HEADERS, Accept: 'application/json' },
     }),
     knownPlanType ?? fetchClaudePlanType(authIndex),
   ]);
@@ -232,10 +241,28 @@ const fetchClaudeQuota = async (
     throw new Error(t('claude_quota.empty_windows'));
   }
 
-  const windows = buildClaudeQuotaWindows(payload, t);
+  const snapshot = normalizeClaudeUsageSnapshot(payload);
+  if (!snapshot) {
+    throw new Error(t('claude_quota.empty_windows'));
+  }
+  const dollarWindows = snapshot.dollarWindows;
+  // Full dollar balances get their own amount/reset rows, not a second plan meter.
+  const windows = buildClaudeQuotaWindows(payload, t).filter(
+    (window) =>
+      window.id !== 'cloud-session-credits' ||
+      !dollarWindows.some((balance) => balance.key === 'iguana_necktie')
+  );
   const planType = planResult.status === 'fulfilled' ? planResult.value : null;
+  const loadedAt = Date.now();
 
-  return { windows, extraUsage: payload.extra_usage, planType, loadedAt: Date.now() };
+  return {
+    windows,
+    extraUsage: snapshot.extraUsage,
+    dollarWindows,
+    observedAt: new Date(loadedAt).toISOString(),
+    planType,
+    loadedAt,
+  };
 };
 
 /**
@@ -244,12 +271,17 @@ const fetchClaudeQuota = async (
  */
 const lastGoodData = (
   previous?: ClaudeQuotaState
-): Pick<ClaudeQuotaState, 'windows' | 'extraUsage' | 'planType' | 'loadedAt'> =>
+): Pick<
+  ClaudeQuotaState,
+  'windows' | 'extraUsage' | 'dollarWindows' | 'observedAt' | 'planType' | 'loadedAt'
+> =>
   previous?.loadedAt === undefined
     ? { windows: [] }
     : {
         windows: previous.windows,
         extraUsage: previous.extraUsage,
+        dollarWindows: previous.dollarWindows,
+        observedAt: previous.observedAt,
         planType: previous.planType,
         loadedAt: previous.loadedAt,
       };
@@ -274,6 +306,9 @@ export const CLAUDE_CONFIG: QuotaProviderData<ClaudeQuotaState, ClaudeQuotaData>
     windows: data.windows,
     extraUsage: data.extraUsage,
     planType: data.planType,
+    dollarWindows: data.dollarWindows,
+    observedAt: data.observedAt,
+    stale: false,
     loadedAt: data.loadedAt,
   }),
   buildErrorState: (message, status, previous) => ({
