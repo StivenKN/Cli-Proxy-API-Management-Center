@@ -32,6 +32,17 @@ const render = (
   options: { resetting?: boolean; resetDisabled?: boolean; onReset?: () => void } = {}
 ) => renderToStaticMarkup(createElement(AuthFileCooldownSection, { snapshot: value, ...options }));
 
+// The hint renders in a title attribute, so compare it HTML-escaped: English
+// "credential's" becomes "credential&#x27;s", and the active language depends on
+// which test files ran first.
+const escapeHtml = (text: string) =>
+  text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#x27;');
+
 function response(files: Record<string, unknown>[]): AuthFilesResponse {
   return { observed_at: observedAt, files } as unknown as AuthFilesResponse;
 }
@@ -225,7 +236,7 @@ describe('cooldown section rendering', () => {
 
     const available = render(snapshot, { onReset: () => {} });
     expect(available).toContain(i18n.t('auth_files.cooldown_reset_button'));
-    expect(available).toContain(i18n.t('auth_files.cooldown_reset_hint'));
+    expect(available).toContain(escapeHtml(i18n.t('auth_files.cooldown_reset_hint')));
     expect(available).not.toContain('disabled=""');
 
     const pending = render(snapshot, { onReset: () => {}, resetting: true });
